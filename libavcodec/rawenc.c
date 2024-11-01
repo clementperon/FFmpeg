@@ -49,6 +49,8 @@ static av_cold int raw_encode_init(AVCodecContext *avctx)
 static int raw_encode(AVCodecContext *avctx, AVPacket *pkt,
                       const AVFrame *frame, int *got_packet)
 {
+    AVFrameSideData *side_data;
+
     int ret = av_image_get_buffer_size(frame->format,
                                        frame->width, frame->height, 1);
 
@@ -78,6 +80,16 @@ static int raw_encode(AVCodecContext *avctx, AVPacket *pkt,
         }
     }
     *got_packet = 1;
+
+    // Forward the PRFT to Mux
+    side_data = av_frame_get_side_data(frame, AV_FRAME_DATA_PRFT);
+    if (side_data && side_data->size) {
+        uint8_t *buf = av_packet_new_side_data(pkt, AV_PKT_DATA_PRFT, side_data->size);
+        if (!buf)
+            return AVERROR(ENOMEM);
+        memcpy(buf, side_data->data, side_data->size);
+    }
+
     return 0;
 }
 
