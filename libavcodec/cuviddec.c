@@ -51,6 +51,162 @@
 #define CUVID_HAS_AV1_SUPPORT
 #endif
 
+/// @brief Structure to store source packets.
+/// This struct implements a circular buffer to store source packets.
+/// The packets are packets that have already been sent to the decoder.
+/// The reason we need the packets is because they may contain additional information and metadata,
+/// that we need to attach to the decoded frame so that the muxers and filters can use it.
+typedef struct sourcePkts
+{
+    /// @brief Array of AVPackets.
+    AVPacket **pkts;
+    /// @brief Number of packets to store.
+    int capacity;
+    /// @brief Index of the first packet.
+    int start_idx;
+    /// @brief Number of packets stored. (typically we found while testing that this hovers around 8)
+    int count;
+} sourcePkts;
+
+/// @brief Allocates a sourcePkts structure.
+/// @param avctx - AVCodecContext (for logging)
+/// @param source_pkts (output)
+/// @param capacity - number of pkts to store
+/// @return int = 0 on success, < 0 on error
+int sourcePkts_alloc(AVCodecContext *avctx, sourcePkts *source_pkts, int capacity);
+
+/// @brief Clears the sourcePkts structure of pkts with pts less than the given pts.
+/// @param avctx - AVCodecContext (for logging)
+/// @param source_pkts - sourcePkts structure
+/// @param pts - pts to clear pkts before
+/// @return int = 0 on success, < 0 on error
+int sourcePkts_clear(AVCodecContext *avctx, sourcePkts *source_pkts, int64_t pts);
+
+/// @brief Converts a logical index to a physical index.
+/// @param source_pkts - sourcePkts structure
+/// @param idx - logical index
+/// @return int - physical index
+int sourcePkts_idx(sourcePkts *source_pkts, int idx);
+
+/// @brief Adds a pkt to the sourcePkts structure.
+/// @param avctx - AVCodecContext (for logging)
+/// @param source_pkts - sourcePkts structure
+/// @param pkt - AVPacket to add
+/// @return int = 0 on success, < 0 on error
+int sourcePkts_add(AVCodecContext *avctx, sourcePkts *source_pkts, AVPacket *pkt);
+
+/// @brief Clears the sourcePkts structure.
+/// @param avctx - AVCodecContext (for logging)
+/// @param source_pkts - sourcePkts structure
+/// @return int = 0 on success, < 0 on error
+int sourcePkts_free(AVCodecContext *avctx, sourcePkts *source_pkts);
+
+/// @brief Finds a pkt with the given pts.
+/// @param avctx - AVCodecContext (for logging)
+/// @param source_pkts - sourcePkts structure
+/// @param pts - pts to find
+/// @return int - physical index of pkt, -1 if not found
+int sourcePkts_find(AVCodecContext *avctx, sourcePkts *source_pkts, int64_t pts);
+
+int sourcePkts_alloc(AVCodecContext *avctx, sourcePkts *source_pkts, int capacity)
+{
+    assert(source_pkts->pkts == NULL);
+    source_pkts->pkts = av_malloc_array(capacity, sizeof(AVPacket *));
+    if (!source_pkts->pkts)
+        return AVERROR(ENOMEM);
+
+    source_pkts->capacity = capacity;
+    source_pkts->start_idx = 0;
+    source_pkts->count = 0;
+
+    av_log(avctx, AV_LOG_TRACE, "sourcePkts_alloc: capacity: %d\n", capacity);
+
+    return 0;
+}
+
+// Converts a logical index to a physical index.
+int sourcePkts_idx(sourcePkts *source_pkts, int idx)
+{
+    return (source_pkts->start_idx + idx) % source_pkts->capacity;
+}
+
+int sourcePkts_find(AVCodecContext *avctx, sourcePkts *source_pkts, int64_t pts)
+{
+    for (int i = 0; i < source_pkts->count; i++)
+    {
+        int idx = sourcePkts_idx(source_pkts, i);
+        av_log(avctx, AV_LOG_TRACE, "sourcePkts_find: idx: %d, pts: %ld == %ld\n", idx, source_pkts->pkts[idx]->pts, pts);
+        if (source_pkts->pkts[idx]->pts == pts)
+            return idx;
+    }
+
+    return -1;
+}
+
+int sourcePkts_add(AVCodecContext *avctx, sourcePkts *source_pkts, AVPacket *pkt)
+{
+    int ret = 0;
+    int idx = 0;
+
+    if (!pkt || pkt->pts == AV_NOPTS_VALUE) return ret;
+
+    if (sourcePkts_find(avctx, source_pkts, pkt->pts) >= 0)
+    {
+        av_log(avctx, AV_LOG_TRACE, "sourcePkts_add: pkt already exists, pts: %ld\n", pkt->pts);
+        return ret;
+    }
+
+    if (source_pkts->capacity == source_pkts->count)
+    {
+        av_log(avctx, AV_LOG_TRACE, "sourcePkts_add: capacity reached, clearing old pkts\n");
+        ret = sourcePkts_clear(avctx, source_pkts, pkt->pts);
+        if (ret < 0) return ret;
+    }
+
+    idx = sourcePkts_idx(source_pkts, source_pkts->count);
+    source_pkts->pkts[idx] = av_packet_clone(pkt);
+    if (!source_pkts->pkts[idx]) return AVERROR(ENOMEM);
+
+    source_pkts->count++;
+
+    av_log(avctx, AV_LOG_TRACE, "sourcePkts_add: added pkt, pts: %ld, size: %d\n", pkt->pts, source_pkts->count);
+
+    return ret;
+}
+
+int sourcePkts_clear(AVCodecContext *avctx, sourcePkts *source_pkts, int64_t pts)
+{
+    for (int i = 0; i < source_pkts->count; i++)
+    {
+        if (!source_pkts->pkts[source_pkts->start_idx] || source_pkts->pkts[source_pkts->start_idx]->pts > pts)
+            break;
+
+        av_log(avctx, AV_LOG_TRACE, "sourcePkts_clear: clearing pkt, pts: %ld\n", source_pkts->pkts[source_pkts->start_idx]->pts);
+
+        av_packet_free(&source_pkts->pkts[source_pkts->start_idx]);
+        source_pkts->pkts[source_pkts->start_idx] = NULL;
+        source_pkts->count--;
+        source_pkts->start_idx = sourcePkts_idx(source_pkts, 1);
+    }
+
+    return 0;
+}
+
+int sourcePkts_free(AVCodecContext *avctx, sourcePkts *source_pkts)
+{
+    for (int i = 0; i < source_pkts->count; i++)
+    {
+        if (source_pkts->pkts[i]) {
+            av_log(avctx, AV_LOG_TRACE, "sourcePkts_free: freeing pkt, pts: %ld\n", source_pkts->pkts[i]->pts);
+            av_packet_free(&source_pkts->pkts[i]);
+        }
+    }
+
+    av_freep(&source_pkts->pkts);
+
+    return 0;
+}
+
 typedef struct CuvidContext
 {
     AVClass *avclass;
@@ -94,6 +250,8 @@ typedef struct CuvidContext
     int decoder_flushing;
 
     int *key_frame;
+
+    sourcePkts source_pkts;
 
     cudaVideoCodec codec_type;
     cudaVideoChromaFormat chroma_format;
@@ -512,6 +670,8 @@ static int cuvid_output_frame(AVCodecContext *avctx, AVFrame *frame)
         if (ret < 0 && ret != AVERROR_EOF)
             return ret;
         ret = cuvid_decode_packet(avctx, pkt);
+
+        ret = ret < 0 ? ret : sourcePkts_add(avctx, & ctx->source_pkts, pkt);
         av_packet_unref(pkt);
         // cuvid_is_buffer_full() should avoid this.
         if (ret == AVERROR(EAGAIN))
@@ -530,6 +690,7 @@ static int cuvid_output_frame(AVCodecContext *avctx, AVFrame *frame)
         unsigned int pitch = 0;
         int offset = 0;
         int i;
+        int source_pkt_idx;
 
         memset(&params, 0, sizeof(params));
         params.progressive_frame = parsed_frame.dispinfo.progressive_frame;
@@ -655,6 +816,16 @@ static int cuvid_output_frame(AVCodecContext *avctx, AVFrame *frame)
             }
         }
 
+        source_pkt_idx = sourcePkts_find(avctx, &ctx->source_pkts, frame->pts);
+        if (source_pkt_idx >= 0)
+        {
+            av_log(avctx, AV_LOG_TRACE, "found source_pkt for frame, pts: %ld\n", frame->pts);
+            ff_decode_frame_props_from_pkt(avctx, frame, ctx->source_pkts.pkts[source_pkt_idx]);
+            sourcePkts_clear(avctx, & ctx->source_pkts, frame->pts);
+        } else {
+            av_log(avctx, AV_LOG_TRACE, "no source_pkt for frame, pts: %ld\n", frame->pts);
+        }
+
         /* CUVIDs opaque reordering breaks the internal pkt logic.
          * So set pkt_pts and clear all the other pkt_ fields.
          */
@@ -722,6 +893,7 @@ static av_cold int cuvid_decode_end(AVCodecContext *avctx)
     av_freep(&ctx->cuparse_ext);
 
     cuvid_free_functions(&ctx->cvdl);
+    sourcePkts_free(avctx, & ctx->source_pkts);
 
     return 0;
 }
@@ -947,6 +1119,9 @@ static av_cold int cuvid_decode_init(AVCodecContext *avctx)
 
     cuda_ctx = device_hwctx->cuda_ctx;
     ctx->cudl = device_hwctx->internal->cuda_dl;
+
+    // To be safe we allocate twice the number of surfaces to avoid the buffer running full with a minimum of 32.
+    sourcePkts_alloc(avctx, &ctx->source_pkts, ctx->nb_surfaces * 2 <= 32 ? 32 : ctx->nb_surfaces * 2);
 
     memset(&ctx->cuparseinfo, 0, sizeof(ctx->cuparseinfo));
     memset(&seq_pkt, 0, sizeof(seq_pkt));
