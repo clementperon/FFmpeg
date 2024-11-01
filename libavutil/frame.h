@@ -243,6 +243,11 @@ enum AVFrameSideDataType {
      * The data is an int storing the view ID.
      */
     AV_FRAME_DATA_VIEW_ID,
+
+    /**
+     * Producer time reference data in the form of the AVProducerReferenceTime struct.
+     */
+    AV_FRAME_DATA_PRFT,
 };
 
 enum AVActiveFormatDescription {
