@@ -23,16 +23,68 @@
 #include "config_components.h"
 
 #include "libavutil/intreadwrite.h"
+#include "libavutil/opt.h"
 
 #include "avformat.h"
 #include "rawenc.h"
 #include "mux.h"
 
+typedef struct RawVideoContext {
+    const AVClass *class;
+
+    int write_prft;
+} RawVideoContext;
+
+// We want to have access to the timestamp with rawvideo
+static int ff_raw_write_prft(AVFormatContext *s, AVPacket *pkt)
+{
+    size_t prft_size = 0;
+    AVProducerReferenceTime *prft =
+        (AVProducerReferenceTime *)av_packet_get_side_data(pkt, AV_PKT_DATA_PRFT, &prft_size);
+
+    double frame_ts;
+
+    avio_write(s->pb, "TIMESTAMP_MAGIC", 16);
+    if (prft && prft_size == sizeof(AVProducerReferenceTime)) {
+        // Save the frame_ts as a double
+        frame_ts = (prft->wallclock) / (double)AV_TIME_BASE;
+        av_log(s, AV_LOG_TRACE, "ff_raw_write_packet: frame_ts %f.\n", frame_ts);
+        avio_write(s->pb, (void *)&frame_ts, sizeof(frame_ts));
+    } else {
+        av_log(s, AV_LOG_TRACE, "ff_raw_write_packet: No Timestamp.\n");
+        avio_write(s->pb, "\0\0\0\0\0\0\0", 8);
+    }
+
+    avio_write(s->pb, "FRAMEDATA_MAGIC", 16);
+    return 0;
+}
+
 int ff_raw_write_packet(AVFormatContext *s, AVPacket *pkt)
 {
+    RawVideoContext *raw = s->priv_data;
+
+    if (raw && raw->write_prft)
+        ff_raw_write_prft(s, pkt);
+
+    av_log(s, AV_LOG_TRACE, "ff_raw_write_packet: pkt->size %d.\n", pkt->size);
+
     avio_write(s->pb, pkt->data, pkt->size);
     return 0;
 }
+
+#undef OFFSET
+#define OFFSET(x) offsetof(RawVideoContext, x)
+static const AVOption raw_options[] = {
+    { "write_prft", "Output the Producer Reference Time", OFFSET(write_prft), AV_OPT_TYPE_BOOL, {.i64=0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
+    { NULL }
+};
+
+static const AVClass raw_muxer_class = {
+    .class_name = "RAW muxer",
+    .item_name  = av_default_item_name,
+    .option     = raw_options,
+    .version    = LIBAVUTIL_VERSION_INT,
+};
 
 /* Note: Do not forget to add new entries to the Makefile as well. */
 
@@ -597,6 +649,8 @@ const FFOutputFormat ff_rawvideo_muxer = {
     .p.subtitle_codec  = AV_CODEC_ID_NONE,
     .write_packet      = ff_raw_write_packet,
     .p.flags           = AVFMT_NOTIMESTAMPS,
+    .p.priv_class      = &raw_muxer_class,
+    .priv_data_size    = sizeof(RawVideoContext),
 };
 #endif
 
