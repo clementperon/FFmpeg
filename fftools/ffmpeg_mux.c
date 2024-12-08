@@ -107,19 +107,16 @@ static void mux_log_debug_ts(OutputStream *ost, const AVPacket *pkt)
                     continue;
                 diff = val_next - val;
 
-                // print those stages that take at least 5% of total
-                if (100. * diff > 5. * total) {
-                    av_strlcat(latency, ", ", sizeof(latency));
+                av_strlcat(latency, ", ", sizeof(latency));
 
-                    if (!strcmp(desc[i], desc[next]))
-                        av_strlcat(latency, desc[i], sizeof(latency));
-                    else
-                        av_strlcatf(latency, sizeof(latency), "%s-%s:",
+                if (!strcmp(desc[i], desc[next]))
+                    av_strlcat(latency, desc[i], sizeof(latency));
+                else
+                    av_strlcatf(latency, sizeof(latency), "%s-%s:",
                                     desc[i], desc[next]);
 
-                    av_strlcatf(latency, sizeof(latency), " %gms/%d%%",
-                                diff / 1e3, (int)(100. * diff / total));
-                }
+                av_strlcatf(latency, sizeof(latency), " %gms/%d%%",
+                            diff / 1e3, (int)(100. * diff / total));
 
                 break;
             }
