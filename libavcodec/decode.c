@@ -1471,6 +1471,8 @@ static int side_data_map(AVFrame *dst,
         const AVPacketSideData *sd_pkt;
         AVFrameSideData *sd_frame;
 
+        av_log(NULL, AV_LOG_INFO, "decode: side_data %d %d\n", type_pkt, type_frame);
+
         sd_pkt = packet_side_data_get(sd_src, nb_sd_src, type_pkt);
         if (!sd_pkt)
             continue;

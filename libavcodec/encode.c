@@ -759,6 +759,8 @@ int ff_encode_preinit(AVCodecContext *avctx)
     EncodeContext     *ec = encode_ctx(avci);
     int ret = 0;
 
+    av_log(avctx, AV_LOG_INFO, "ff_encode_preinit\n");
+
     if (avctx->time_base.num <= 0 || avctx->time_base.den <= 0) {
         av_log(avctx, AV_LOG_ERROR, "The encoder timebase is not set.\n");
         return AVERROR(EINVAL);
@@ -817,6 +819,8 @@ int ff_encode_preinit(AVCodecContext *avctx)
         const enum AVFrameSideDataType  type_frame  = ff_sd_global_map[i].frame;
         const AVFrameSideData *sd_frame;
         AVPacketSideData      *sd_packet;
+
+        av_log(avctx, AV_LOG_INFO, "ff_encode_preinit: side_data %d %d\n", type_packet, type_frame);
 
         sd_frame = av_frame_side_data_get(avctx->decoded_side_data,
                                           avctx->nb_decoded_side_data,

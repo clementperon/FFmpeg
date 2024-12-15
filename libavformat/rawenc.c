@@ -48,10 +48,10 @@ static int ff_raw_write_prft(AVFormatContext *s, AVPacket *pkt)
     if (prft && prft_size == sizeof(AVProducerReferenceTime)) {
         // Save the frame_ts as a double
         frame_ts = (prft->wallclock) / (double)AV_TIME_BASE;
-        av_log(s, AV_LOG_TRACE, "ff_raw_write_packet: frame_ts %f.\n", frame_ts);
+        av_log(s, AV_LOG_INFO, "ff_raw_write_packet: frame_ts %f.\n", frame_ts);
         avio_write(s->pb, (void *)&frame_ts, sizeof(frame_ts));
     } else {
-        av_log(s, AV_LOG_TRACE, "ff_raw_write_packet: No Timestamp.\n");
+        av_log(s, AV_LOG_INFO, "ff_raw_write_packet: No Timestamp.\n");
         avio_write(s->pb, "\0\0\0\0\0\0\0", 8);
     }
 
