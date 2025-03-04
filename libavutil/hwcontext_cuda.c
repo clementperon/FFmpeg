@@ -404,18 +404,18 @@ static int cuda_flags_from_opts(AVHWDeviceContext *device_ctx,
     }
 
     if (primary_ctx_opt && use_primary_ctx) {
-        av_log(device_ctx, AV_LOG_VERBOSE, "Using CUDA primary device context\n");
+        av_log(device_ctx, AV_LOG_INFO, "Using CUDA primary device context\n");
         *flags |= AV_CUDA_USE_PRIMARY_CONTEXT;
     } else if (primary_ctx_opt) {
-        av_log(device_ctx, AV_LOG_VERBOSE, "Disabling use of CUDA primary device context\n");
+        av_log(device_ctx, AV_LOG_INFO, "Disabling use of CUDA primary device context\n");
         *flags &= ~AV_CUDA_USE_PRIMARY_CONTEXT;
     }
 
     if (current_ctx_opt && use_current_ctx) {
-        av_log(device_ctx, AV_LOG_VERBOSE, "Using CUDA current device context\n");
+        av_log(device_ctx, AV_LOG_INFO, "Using CUDA current device context\n");
         *flags |= AV_CUDA_USE_CURRENT_CONTEXT;
     } else if (current_ctx_opt) {
-        av_log(device_ctx, AV_LOG_VERBOSE, "Disabling use of CUDA current device context\n");
+        av_log(device_ctx, AV_LOG_INFO, "Disabling use of CUDA current device context\n");
         *flags &= ~AV_CUDA_USE_CURRENT_CONTEXT;
     }
 
