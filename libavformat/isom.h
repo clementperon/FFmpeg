@@ -177,6 +177,12 @@ typedef struct MOVIndexRange {
     int64_t end;
 } MOVIndexRange;
 
+typedef struct MOVPrft {
+    int64_t media_time;
+    int64_t wallclock;
+    int flags;
+} MOVPrft;
+
 typedef struct MOVStreamContext {
     AVIOContext *pb;
     int refcount;
@@ -242,6 +248,9 @@ typedef struct MOVStreamContext {
     uint32_t tmcd_flags;  ///< tmcd track flags
     uint8_t tmcd_nb_frames;  ///< tmcd number of frames per tick / second
     int64_t track_end;    ///< used for dts generation in fragmented movie files
+    unsigned int prft_count;
+    unsigned int prft_allocated_size;
+    MOVPrft *prft_data;
     unsigned int rap_group_count;
     MOVSbgp *rap_group;
     unsigned int sync_group_count;

@@ -6640,6 +6640,81 @@ static int mov_read_trun(MOVContext *c, AVIOContext *pb, MOVAtom atom)
     return 0;
 }
 
+static unsigned mov_search_prft(const MOVStreamContext *sc, int64_t media_time)
+{
+    unsigned a, b, m;
+
+    a = 0;
+    b = sc->prft_count;
+
+    while (a < b) {
+        m = (a + b) >> 1;
+        if (sc->prft_data[m].media_time < media_time)
+            a = m + 1;
+        else
+            b = m;
+    }
+    return a;
+}
+
+static int mov_read_prft(MOVContext *c, AVIOContext *pb, MOVAtom atom)
+{
+    AVStream *st = NULL;
+    MOVStreamContext *sc;
+    MOVPrft *prft;
+    int version, flags;
+    unsigned i, track_id;
+    uint64_t ntp_ts;
+    int64_t media_time;
+
+    version = avio_r8(pb);
+    flags   = avio_rb24(pb);
+    if (atom.size < (version ? 24 : 20))
+        return 0;
+
+    track_id = avio_rb32(pb);
+    for (i = 0; i < c->fc->nb_streams; i++) {
+        sc = c->fc->streams[i]->priv_data;
+        if (sc->id == track_id) {
+            st = c->fc->streams[i];
+            break;
+        }
+    }
+    if (!st) {
+        av_log(c->fc, AV_LOG_WARNING, "could not find corresponding track id %u\n", track_id);
+        return 0;
+    }
+    sc = st->priv_data;
+
+    ntp_ts = avio_rb64(pb);
+    if (version) {
+        media_time = avio_rb64(pb);
+    } else {
+        media_time = avio_rb32(pb);
+    }
+
+    i = mov_search_prft(sc, media_time);
+    if (i == sc->prft_count || sc->prft_data[i].media_time != media_time) {
+        if ((uint64_t)sc->prft_count + 1 >= UINT_MAX / sizeof(*sc->prft_data))
+            return AVERROR_INVALIDDATA;
+        prft = av_fast_realloc(sc->prft_data, &sc->prft_allocated_size,
+                               (sc->prft_count + 1) * sizeof(*sc->prft_data));
+        if (!prft)
+            return AVERROR(ENOMEM);
+        sc->prft_data = prft;
+        memmove(sc->prft_data + i + 1, sc->prft_data + i,
+                (sc->prft_count - i) * sizeof(*sc->prft_data));
+        sc->prft_count++;
+    }
+
+    prft = &sc->prft_data[i];
+    prft->media_time = media_time;
+    prft->wallclock  = ff_parse_ntp_time(ntp_ts) - NTP_OFFSET_US;
+    prft->flags      = flags;
+
+    return 0;
+}
+
 static int mov_read_sidx(MOVContext *c, AVIOContext *pb, MOVAtom atom)
 {
     int64_t stream_size = avio_size(pb);
@@ -10472,6 +10547,7 @@ static const MOVParseTableEntry mov_default_parse_table[] = {
 { MKTAG('r','n','d','r'), mov_read_cdsc_rndr },
 { MKTAG('s','b','a','s'), mov_read_sbas },
 { MKTAG('v','d','e','p'), mov_read_vdep },
+{ MKTAG('p','r','f','t'), mov_read_prft },
 { MKTAG('s','i','d','x'), mov_read_sidx },
 { MKTAG('s','t','b','l'), mov_read_default },
 { MKTAG('s','t','c','o'), mov_read_stco },
@@ -11016,6 +11092,7 @@ static void mov_free_stream_context(AVFormatContext *s, AVStream *st)
     av_freep(&sc->rap_group);
     av_freep(&sc->sync_group);
     av_freep(&sc->sgpd_sync);
+    av_freep(&sc->prft_data);
     av_freep(&sc->sample_offsets);
     av_freep(&sc->open_key_samples);
     av_freep(&sc->display_matrix);
@@ -12980,6 +13057,39 @@ static int mov_finalize_packet(AVFormatContext *s, AVStream *st, AVIndexEntry *s
     return 0;
 }
 
+static int mov_export_prft(AVStream *st, AVPacket *pkt)
+{
+    MOVStreamContext *sc = st->priv_data;
+    AVProducerReferenceTime *prft;
+    const MOVPrft *ref;
+    int64_t media_time;
+    unsigned i;
+
+    if (!sc->prft_count)
+        return 0;
+
+    media_time = av_sat_add64(pkt->pts, sc->time_offset);
+    if (sc->ctts_count)
+        media_time = av_sat_sub64(media_time, sc->dts_shift);
+
+    i = mov_search_prft(sc, media_time);
+    if (i && (i == sc->prft_count || sc->prft_data[i].media_time > media_time))
+        i--;
+    ref = &sc->prft_data[i];
+
+    prft = (AVProducerReferenceTime *)av_packet_new_side_data(pkt, AV_PKT_DATA_PRFT,
+                                                              sizeof(*prft));
+    if (!prft)
+        return AVERROR(ENOMEM);
+
+    prft->wallclock = av_sat_add64(ref->wallclock,
+                                   av_rescale_q(av_sat_sub64(media_time, ref->media_time),
+                                                st->time_base, AV_TIME_BASE_Q));
+    prft->flags     = ref->flags;
+
+    return 0;
+}
+
 static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)
 {
     MOVContext *mov = s->priv_data;
@@ -13149,6 +13259,10 @@ static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)
 
     if (st->discard == AVDISCARD_ALL)
         goto retry;
+
+    ret = mov_export_prft(st, pkt);
+    if (ret < 0)
+        return ret;
 
     if (mov->aax_mode)
         aax_filter(pkt->data, pkt->size, mov);
