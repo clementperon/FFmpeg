@@ -661,6 +661,11 @@ fate-mov-chpl-utf8: tests/data/chpl-utf8.ffmeta
 FATE_MOV_FFMPEG_FFPROBE-$(call ALLYES, COLOR_FILTER MPEG4_ENCODER FFMETADATA_DEMUXER TGP_MUXER MOV_DEMUXER FILE_PROTOCOL) += fate-mov-chpl-utf8
 fate-mov-chpl-utf8: CMD = run_with_temp "$(FFMPEG) -nostdin -v error -filter_complex color=c=black:s=2x2:r=1 -f ffmetadata -i $(TARGET_PATH)/tests/data/chpl-utf8.ffmeta -map_chapters 0 -frames:v 1 -c:v mpeg4 -threads 1 -flags +bitexact -fflags +bitexact -f 3gp -y" "ffprobe$(PROGSSUF)$(EXESUF) -loglevel error -bitexact -show_chapters" 3gp
 
+# The prft boxes hold the pts of the muxed packets, the demuxer shifts the
+# pts by one frame because of the negative cts offsets.
+FATE_MOV_FFMPEG_FFPROBE-$(call ALLYES, LAVFI_INDEV TESTSRC2_FILTER MPEG4_ENCODER MP4_MUXER MOV_DEMUXER FILE_PROTOCOL) += fate-mov-mp4-prft
+fate-mov-mp4-prft: CMD = run_with_temp "$(FFMPEG) -nostdin -v error -f lavfi -i testsrc2=size=64x64:rate=25:duration=0.48 -c:v mpeg4 -bf 2 -g 6 -threads 1 -flags +bitexact -fflags +bitexact -movflags +frag_keyframe+empty_moov+default_base_moof+negative_cts_offsets -write_prft pts -f mp4 -y" "ffprobe$(PROGSSUF)$(EXESUF) -loglevel error -bitexact -show_entries packet=pts,dts:packet_side_data_list -of compact" mp4
+
 FATE_FFMPEG += $(FATE_MOV_FFMPEG-yes)
 FATE_FFMPEG_FFPROBE += $(FATE_MOV_FFMPEG_FFPROBE-yes)
 
