@@ -1,0 +1,12 @@
+packet|pts=0|dts=-512|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=0|side_datum/producer_reference_time:flags=24
+packet|pts=1536|dts=0|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=120000|side_datum/producer_reference_time:flags=24
+packet|pts=512|dts=512|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=40000|side_datum/producer_reference_time:flags=24
+packet|pts=1024|dts=1024|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=80000|side_datum/producer_reference_time:flags=24
+packet|pts=3072|dts=1536|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=239999|side_datum/producer_reference_time:flags=24
+packet|pts=2048|dts=2048|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=160000|side_datum/producer_reference_time:flags=24
+packet|pts=2560|dts=2560|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=200000|side_datum/producer_reference_time:flags=24
+packet|pts=4608|dts=3072|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=359999|side_datum/producer_reference_time:flags=24
+packet|pts=3584|dts=3584|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=279999|side_datum/producer_reference_time:flags=24
+packet|pts=4096|dts=4096|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=319999|side_datum/producer_reference_time:flags=24
+packet|pts=5632|dts=4608|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=439999|side_datum/producer_reference_time:flags=24
+packet|pts=5120|dts=5120|side_datum/producer_reference_time:side_data_type=Producer Reference Time|side_datum/producer_reference_time:wallclock=399999|side_datum/producer_reference_time:flags=24

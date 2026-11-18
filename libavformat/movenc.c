@@ -6228,7 +6228,8 @@ static int mov_write_prft_tag(AVIOContext *pb, MOVMuxContext *mov, int tracks)
     avio_wb24(pb, flags);                       // Flags
     avio_wb32(pb, first_track->track_id);       // reference track ID
     avio_wb64(pb, ntp_ts);                      // NTP time stamp
-    avio_wb64(pb, first_track->cluster[0].pts); //media time
+    avio_wb64(pb, first_track->cluster[0].dts + first_track->cluster[0].cts -
+                  first_track->start_dts); // media time
     return update_size(pb, pos);
 }
 

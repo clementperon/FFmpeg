@@ -666,6 +666,10 @@ fate-mov-chpl-utf8: CMD = run_with_temp "$(FFMPEG) -nostdin -v error -filter_com
 FATE_MOV_FFMPEG_FFPROBE-$(call ALLYES, LAVFI_INDEV TESTSRC2_FILTER MPEG4_ENCODER MP4_MUXER MOV_DEMUXER FILE_PROTOCOL) += fate-mov-mp4-prft
 fate-mov-mp4-prft: CMD = run_with_temp "$(FFMPEG) -nostdin -v error -f lavfi -i testsrc2=size=64x64:rate=25:duration=0.48 -c:v mpeg4 -bf 2 -g 6 -threads 1 -flags +bitexact -fflags +bitexact -movflags +frag_keyframe+empty_moov+default_base_moof+negative_cts_offsets -write_prft pts -f mp4 -y" "ffprobe$(PROGSSUF)$(EXESUF) -loglevel error -bitexact -show_entries packet=pts,dts:packet_side_data_list -of compact" mp4
 
+# The first dts is negative and the edit list skips the first frame duration.
+FATE_MOV_FFMPEG_FFPROBE-$(call ALLYES, LAVFI_INDEV TESTSRC2_FILTER MPEG4_ENCODER MP4_MUXER MOV_DEMUXER FILE_PROTOCOL) += fate-mov-mp4-prft-elst
+fate-mov-mp4-prft-elst: CMD = run_with_temp "$(FFMPEG) -nostdin -v error -f lavfi -i testsrc2=size=64x64:rate=25:duration=0.48 -c:v mpeg4 -bf 2 -g 6 -threads 1 -flags +bitexact -fflags +bitexact -movflags +frag_keyframe+delay_moov+default_base_moof -write_prft pts -f mp4 -y" "ffprobe$(PROGSSUF)$(EXESUF) -loglevel error -bitexact -show_entries packet=pts,dts:packet_side_data_list -of compact" mp4
+
 FATE_FFMPEG += $(FATE_MOV_FFMPEG-yes)
 FATE_FFMPEG_FFPROBE += $(FATE_MOV_FFMPEG_FFPROBE-yes)
 
